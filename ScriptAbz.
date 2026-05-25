@@ -1,0 +1,1016 @@
+-- =========================================================
+-- 🔥 MASTER HUB V2.6.6 AUTO BY: Abzzait 🔥
+-- Features: KillAll | Fly | TP Pos | Player (Orbit, Under, Camera Control)
+-- Hotkeys: E = KillAll | X = Fly | T = TP Target
+-- Upgraded V2.6.6: Thêm Bộ Chỉnh WalkSpeed & JumpPower Ở Tab 1 Vòng Lặp Khóa Stats
+-- =========================================================
+
+local UIS = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local VirtualUser = game:GetService("VirtualUser")
+local TweenService = game:GetService("TweenService")
+local lp = Players.LocalPlayer
+
+-- =========================================================
+-- [HỆ THỐNG TỰ ĐỘNG - KÍCH HOẠT NGAY KHI BẬT SCRIPT]
+-- =========================================================
+if getconnections then
+    for _, connection in pairs(getconnections(lp.Idled)) do
+        pcall(function() connection:Disable() end)
+    end
+end
+lp.Idled:Connect(function()
+    VirtualUser:CaptureController()
+    VirtualUser:ClickButton2(Vector2.new(0,0))
+end)
+
+-- [PART 1: KHỞI TẠO GIAO DIỆN TỔNG MỞ RỘNG]
+local Gui = Instance.new("ScreenGui", lp:WaitForChild("PlayerGui"))
+Gui.Name = "Abzzait_MasterHub_V2"
+Gui.ResetOnSpawn = false
+
+local MainFrame = Instance.new("Frame", Gui)
+MainFrame.Size = UDim2.new(0, 260, 0, 380)
+MainFrame.Position = UDim2.new(0.5, -130, 0.25, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BorderSizePixel = 0
+MainFrame.ClipsDescendants = true
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
+
+-- Hệ thống kéo thả GUI mượt mà
+local drag, start, pos
+MainFrame.InputBegan:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+        drag = true start = i.Position pos = MainFrame.Position
+    end
+end)
+UIS.InputChanged:Connect(function(i)
+    if drag and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+        local delta = i.Position - start
+        MainFrame.Position = UDim2.new(pos.X.Scale, pos.X.Offset + delta.X, pos.Y.Scale, pos.Y.Offset + delta.Y)
+    end
+end)
+UIS.InputEnded:Connect(function() drag = false end)
+
+-- Tiêu đề Hub v2.6.6 AUTO
+local Title = Instance.new("TextLabel", MainFrame)
+Title.BackgroundTransparency = 1
+Title.Size = UDim2.new(1, -40, 0, 25)
+Title.Position = UDim2.new(0, 10, 0, 5)
+Title.Text = "🔥 ABZZAIT HUB V2.6.6 AUTO"
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 11
+Title.TextColor3 = Color3.new(1, 1, 1)
+Title.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Nút [-] rút gọn giao diện
+local MinBtn = Instance.new("TextButton", MainFrame)
+MinBtn.Size = UDim2.new(0, 20, 0, 20)
+MinBtn.Position = UDim2.new(1, -25, 0, 5)
+MinBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+MinBtn.Text = "-"
+MinBtn.Font = Enum.Font.GothamBold
+MinBtn.TextSize = 14
+MinBtn.TextColor3 = Color3.new(1, 1, 1)
+Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(0, 4)
+
+-- Vùng chứa các tab tính năng
+local ContentContainer = Instance.new("Frame", MainFrame)
+ContentContainer.Size = UDim2.new(0, 190, 0, 315)
+ContentContainer.Position = UDim2.new(0, 10, 0, 35)
+ContentContainer.BackgroundTransparency = 1
+
+local TabBar = Instance.new("Frame", MainFrame)
+TabBar.Size = UDim2.new(0, 45, 0, 315)
+TabBar.Position = UDim2.new(0, 205, 0, 35)
+TabBar.BackgroundTransparency = 1
+
+-- CHỮ HINT ĐỘC LẬP DƯỚI ĐÁY GUI
+local GlobalHelp = Instance.new("TextLabel", MainFrame)
+GlobalHelp.BackgroundTransparency = 1
+GlobalHelp.Size = UDim2.new(0, 240, 0, 24)
+GlobalHelp.Position = UDim2.new(0, 10, 0, 353)
+GlobalHelp.Text = "Hotkeys: E = KillAll | X = Fly | T = TP Target"
+GlobalHelp.Font = Enum.Font.GothamBold
+GlobalHelp.TextSize = 9
+GlobalHelp.TextColor3 = Color3.fromRGB(200, 200, 200)
+GlobalHelp.TextTransparency = 0.7 
+GlobalHelp.TextWrapped = true
+GlobalHelp.TextXAlignment = Enum.TextXAlignment.Left
+
+local isMinimized = false
+MinBtn.MouseButton1Click:Connect(function()
+    isMinimized = not isMinimized
+    if isMinimized then
+        MainFrame.Size = UDim2.new(0, 260, 0, 30)
+        ContentContainer.Visible = false
+        TabBar.Visible = false
+        GlobalHelp.Visible = false
+        MinBtn.Text = "+"
+    else
+        MainFrame.Size = UDim2.new(0, 260, 0, 380)
+        ContentContainer.Visible = true
+        TabBar.Visible = true
+        GlobalHelp.Visible = true
+        MinBtn.Text = "-"
+    end
+end)
+
+-- =========================================================
+-- [PART 2: KHỞI TẠO BỘ KHUNG PHÂN KHU (5 TABS)]
+-- =========================================================
+local TabButtons = {}
+local TabFrames = {}
+
+for i = 1, 5 do
+    local tFrame
+    if i == 1 or i == 2 or i == 3 then
+        tFrame = Instance.new("ScrollingFrame", ContentContainer)
+        tFrame.CanvasSize = UDim2.new(0, 0, 0, (i == 1 and 350 or (i == 2 and 365 or 400)))
+        tFrame.ScrollBarThickness = 6
+        tFrame.ScrollBarImageColor3 = Color3.fromRGB(255, 165, 0) 
+        tFrame.Active = true
+    else
+        tFrame = Instance.new("Frame", ContentContainer)
+    end
+    tFrame.Size = UDim2.new(1, 0, 1, 0)
+    tFrame.BackgroundTransparency = 1
+    tFrame.Visible = (i == 1)
+    TabFrames[i] = tFrame
+end
+
+local function SwitchTab(tabIndex)
+    for i = 1, 5 do
+        TabFrames[i].Visible = (i == tabIndex)
+        if TabButtons[i] then
+            TabButtons[i].BackgroundColor3 = (i == tabIndex) and Color3.fromRGB(55, 55, 55) or Color3.fromRGB(35, 35, 35)
+            TabButtons[i].TextColor3 = (i == tabIndex) and Color3.fromRGB(255, 165, 0) or Color3.new(1, 1, 1)
+        end
+    end
+end
+
+local tabNames = {"1", "TP Pos", "Player", "4", "5"}
+for i = 1, 5 do
+    local btn = Instance.new("TextButton", TabBar)
+    btn.Size = UDim2.new(1, 0, 0, 28)
+    btn.Position = UDim2.new(0, 0, 0, (i - 1) * 33)
+    btn.BackgroundColor3 = (i == 1) and Color3.fromRGB(55, 55, 55) or Color3.fromRGB(35, 35, 35)
+    btn.Text = tabNames[i]
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = (tabNames[i] == "TP Pos" or tabNames[i] == "Player") and 8 or 11
+    btn.TextColor3 = (i == 1) and Color3.fromRGB(255, 165, 0) or Color3.new(1, 1, 1)
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
+    
+    btn.MouseButton1Click:Connect(function() SwitchTab(i) end)
+    TabButtons[i] = btn
+end
+
+-- Biến toàn cục hệ thống dùng chung
+local infZoomActive = false
+local currentFOV = 70
+local SelectedPlayer = nil
+
+local PlayerLabel = Instance.new("TextLabel")
+local OrbitTargetLabel = Instance.new("TextLabel")
+local StartOrbitBtn = Instance.new("TextButton")
+local UnderBtn = Instance.new("TextButton")
+local InfZoomBtn = Instance.new("TextButton")
+
+-- Biến điều khiển WalkSpeed và JumpPower mới
+local walkSpeedValue = 16
+local jumpPowerValue = 50
+
+-- =========================================================
+-- [PART 3: KHU VỰC 1 - CÁC TÍNH NĂNG GỐC + SPEED & JUMP]
+-- =========================================================
+local Khu1 = TabFrames[1]
+
+local toggledKillAll = false
+local loopKillAllActive = false
+local isOrbiting = false
+local isUnderground = false
+local isFlying = false
+local antiFlingMode = "Bật" 
+
+local SPEED_TUNER = 0.02
+local BACK_OFFSET_DISTANCE = 2.0
+local orbitSpeed = 5
+local orbitDistance = 5
+local flySpeed = 50
+local angle = 0
+
+local orbitConnection
+local underConnection
+local flyConnection
+local bV, bG
+
+local function ResetAllStates()
+    toggledKillAll = false
+    isOrbiting = false
+    if orbitConnection then orbitConnection:Disconnect() orbitConnection = nil end
+    isUnderground = false
+    if underConnection then underConnection:Disconnect() underConnection = nil end
+    
+    isFlying = false
+    if flyConnection then flyConnection:Disconnect() flyConnection = nil end
+    if bV then bV:Destroy() bV = nil end
+    if bG then bG:Destroy() bG = nil end
+    
+    if antiFlingMode == "Bật" then
+        antiFlingMode = "Tắt"
+    end
+end
+
+local KillAllBtn = Instance.new("TextButton", Khu1)
+KillAllBtn.Size = UDim2.new(1, -6, 0, 26)
+KillAllBtn.Position = UDim2.new(0, 0, 0, 0)
+KillAllBtn.BackgroundColor3 = Color3.fromRGB(200, 30, 30)
+KillAllBtn.Text = "Kill All: OFF (E)"
+KillAllBtn.Font = Enum.Font.GothamBold
+KillAllBtn.TextSize = 11
+KillAllBtn.TextColor3 = Color3.new(1, 1, 1)
+Instance.new("UICorner", KillAllBtn).CornerRadius = UDim.new(0, 5)
+
+local FlyBtn = Instance.new("TextButton", Khu1)
+FlyBtn.Size = UDim2.new(1, -6, 0, 26)
+FlyBtn.Position = UDim2.new(0, 0, 0, 30)
+FlyBtn.BackgroundColor3 = Color3.fromRGB(200, 30, 30)
+FlyBtn.Text = "Fly Hack: OFF (X)"
+FlyBtn.Font = Enum.Font.GothamBold
+FlyBtn.TextSize = 11
+FlyBtn.TextColor3 = Color3.new(1, 1, 1)
+Instance.new("UICorner", FlyBtn).CornerRadius = UDim.new(0, 5)
+
+local FlyDec = Instance.new("TextButton", Khu1)
+FlyDec.Size = UDim2.new(0, 18, 0, 18)
+FlyDec.Position = UDim2.new(0, 0, 0, 60)
+FlyDec.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+FlyDec.Text = "-"
+FlyDec.TextColor3 = Color3.new(1, 1, 1)
+Instance.new("UICorner", FlyDec)
+
+local FlyInc = Instance.new("TextButton", Khu1)
+FlyInc.Size = UDim2.new(0, 18, 0, 18)
+FlyInc.Position = UDim2.new(1, -24, 0, 60)
+FlyInc.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+FlyInc.Text = "+"
+FlyInc.TextColor3 = Color3.new(1, 1, 1)
+Instance.new("UICorner", FlyInc)
+
+local FlySpeedLabel = Instance.new("TextLabel", Khu1)
+FlySpeedLabel.BackgroundTransparency = 1
+FlySpeedLabel.Size = UDim2.new(1, -46, 0, 18)
+FlySpeedLabel.Position = UDim2.new(0, 20, 0, 60)
+FlySpeedLabel.Text = "Fly Speed: " .. flySpeed
+FlySpeedLabel.Font = Enum.Font.Gotham
+FlySpeedLabel.TextSize = 10
+FlySpeedLabel.TextColor3 = Color3.new(1, 1, 1)
+
+PlayerLabel.Parent = Khu1
+PlayerLabel.BackgroundTransparency = 1
+PlayerLabel.Size = UDim2.new(1, -6, 0, 16)
+PlayerLabel.Position = UDim2.new(0, 0, 0, 82)
+PlayerLabel.Text = "Target: None"
+PlayerLabel.Font = Enum.Font.GothamBold
+PlayerLabel.TextSize = 11
+PlayerLabel.TextColor3 = Color3.fromRGB(255, 165, 0)
+PlayerLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local AntiFlingFrame = Instance.new("Frame", Khu1)
+AntiFlingFrame.Size = UDim2.new(1, -6, 0, 26)
+AntiFlingFrame.Position = UDim2.new(0, 0, 0, 102)
+AntiFlingFrame.BackgroundTransparency = 1
+
+local AntiFlingLabel = Instance.new("TextLabel", AntiFlingFrame)
+AntiFlingLabel.Size = UDim2.new(1, -55, 1, 0)
+AntiFlingLabel.Position = UDim2.new(0, 5, 0, 0)
+AntiFlingLabel.BackgroundTransparency = 1
+AntiFlingLabel.Text = "Anti-Fling"
+AntiFlingLabel.Font = Enum.Font.GothamBold
+AntiFlingLabel.TextSize = 11
+AntiFlingLabel.TextColor3 = Color3.new(1, 1, 1)
+AntiFlingLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local AntiFlingToggle = Instance.new("TextButton", AntiFlingFrame)
+AntiFlingToggle.Size = UDim2.new(0, 48, 0, 20)
+AntiFlingToggle.Position = UDim2.new(1, -48, 0, 3)
+AntiFlingToggle.BackgroundColor3 = Color3.fromRGB(30, 160, 30)
+AntiFlingToggle.Text = "Bật"
+AntiFlingToggle.Font = Enum.Font.GothamBold
+AntiFlingToggle.TextSize = 10
+AntiFlingToggle.TextColor3 = Color3.new(1, 1, 1)
+Instance.new("UICorner", AntiFlingToggle).CornerRadius = UDim.new(0, 4)
+
+-- 🌟 [BỔ SUNG] KHUNG ĐIỀU CHỈNH WALKSPEED (TỐC ĐỘ DI CHUYỂN)
+local SpeedFrame = Instance.new("Frame", Khu1)
+SpeedFrame.Size = UDim2.new(1, -6, 0, 28)
+SpeedFrame.Position = UDim2.new(0, 0, 0, 134)
+SpeedFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+Instance.new("UICorner", SpeedFrame).CornerRadius = UDim.new(0, 5)
+
+local SpeedLabel = Instance.new("TextLabel", SpeedFrame)
+SpeedLabel.Size = UDim2.new(1, -50, 1, 0)
+SpeedLabel.Position = UDim2.new(0, 25, 0, 0)
+SpeedLabel.BackgroundTransparency = 1
+SpeedLabel.Text = "WalkSpeed: " .. walkSpeedValue
+SpeedLabel.Font = Enum.Font.GothamBold
+SpeedLabel.TextSize = 10
+SpeedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+local SpeedMinus = Instance.new("TextButton", SpeedFrame)
+SpeedMinus.Size = UDim2.new(0, 20, 0, 20)
+SpeedMinus.Position = UDim2.new(0, 4, 0, 4)
+SpeedMinus.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+SpeedMinus.Text = "-"
+SpeedMinus.Font = Enum.Font.GothamBold
+SpeedMinus.TextColor3 = Color3.new(1, 1, 1)
+Instance.new("UICorner", SpeedMinus)
+
+local SpeedPlus = Instance.new("TextButton", SpeedFrame)
+SpeedPlus.Size = UDim2.new(0, 20, 0, 20)
+SpeedPlus.Position = UDim2.new(1, -24, 0, 4)
+SpeedPlus.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+SpeedPlus.Text = "+"
+SpeedPlus.Font = Enum.Font.GothamBold
+SpeedPlus.TextColor3 = Color3.new(1, 1, 1)
+Instance.new("UICorner", SpeedPlus)
+
+-- 🌟 [BỔ SUNG] KHUNG ĐIỀU CHỈNH JUMPPOWER (ĐỘ CAO NHẢY)
+local JumpFrame = Instance.new("Frame", Khu1)
+JumpFrame.Size = UDim2.new(1, -6, 0, 28)
+JumpFrame.Position = UDim2.new(0, 0, 0, 166)
+JumpFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+Instance.new("UICorner", JumpFrame).CornerRadius = UDim.new(0, 5)
+
+local JumpLabel = Instance.new("TextLabel", JumpFrame)
+JumpLabel.Size = UDim2.new(1, -50, 1, 0)
+JumpLabel.Position = UDim2.new(0, 25, 0, 0)
+JumpLabel.BackgroundTransparency = 1
+JumpLabel.Text = "JumpPower: " .. jumpPowerValue
+JumpLabel.Font = Enum.Font.GothamBold
+JumpLabel.TextSize = 10
+JumpLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+local JumpMinus = Instance.new("TextButton", JumpFrame)
+JumpMinus.Size = UDim2.new(0, 20, 0, 20)
+JumpMinus.Position = UDim2.new(0, 4, 0, 4)
+JumpMinus.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+JumpMinus.Text = "-"
+JumpMinus.Font = Enum.Font.GothamBold
+JumpMinus.TextColor3 = Color3.new(1, 1, 1)
+Instance.new("UICorner", JumpMinus)
+
+local JumpPlus = Instance.new("TextButton", JumpFrame)
+JumpPlus.Size = UDim2.new(0, 20, 0, 20)
+JumpPlus.Position = UDim2.new(1, -24, 0, 4)
+JumpPlus.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+JumpPlus.Text = "+"
+JumpPlus.Font = Enum.Font.GothamBold
+JumpPlus.TextColor3 = Color3.new(1, 1, 1)
+Instance.new("UICorner", JumpPlus)
+
+local function UpdateVisuals()
+    KillAllBtn.Text = toggledKillAll and "Kill All: ON 🔥" or "Kill All: OFF (E)"
+    KillAllBtn.BackgroundColor3 = toggledKillAll and Color3.fromRGB(30, 160, 30) or Color3.fromRGB(200, 30, 30)
+    FlyBtn.Text = isFlying and "🚀 Fly: ON 🚀" or "Fly: OFF (X)"
+    FlyBtn.BackgroundColor3 = isFlying and Color3.fromRGB(30, 160, 30) or Color3.fromRGB(200, 30, 30)
+    
+    StartOrbitBtn.Text = isOrbiting and "Orbit: ON 🔥" or "Orbit: OFF"
+    StartOrbitBtn.BackgroundColor3 = isOrbiting and Color3.fromRGB(30, 160, 30) or Color3.fromRGB(200, 30, 30)
+    
+    UnderBtn.Text = isUnderground and "Under: ON" or "Under: OFF"
+    UnderBtn.BackgroundColor3 = isUnderground and Color3.fromRGB(140, 20, 180) or Color3.fromRGB(60, 60, 60)
+    
+    if antiFlingMode == "Tắt" then
+        AntiFlingToggle.Text = "Tắt"
+        AntiFlingToggle.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    elseif antiFlingMode == "Bật" then
+        AntiFlingToggle.Text = "Bật"
+        AntiFlingToggle.BackgroundColor3 = Color3.fromRGB(30, 160, 30)
+    elseif antiFlingMode == "Khóa" then
+        AntiFlingToggle.Text = "Khóa 🔒"
+        AntiFlingToggle.BackgroundColor3 = Color3.fromRGB(200, 30, 30)
+    end
+end
+
+local function GetTargetsIncludingDummies()
+    local targets = {}
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= lp and p.Character and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then table.insert(targets, p.Character) end
+    end
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj:FindFirstChild("HumanoidRootPart") then
+            if not Players:GetPlayerFromCharacter(obj) and obj ~= lp.Character and obj.Humanoid.Health > 0 then table.insert(targets, obj) end
+        end
+    end
+    return targets
+end
+
+local function RunKillAllLoop()
+    if loopKillAllActive then return end
+    loopKillAllActive = true
+    task.spawn(function()
+        while toggledKillAll do
+            local targets = GetTargetsIncludingDummies()
+            if #targets > 0 then
+                local target = targets[math.random(1, #targets)]
+                local myChar = lp.Character
+                local hrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
+                local targetHrp = target:FindFirstChild("HumanoidRootPart")
+                if hrp and targetHrp then
+                    local backOffset = targetHrp.CFrame.LookVector * BACK_OFFSET_DISTANCE
+                    local targetPos = Vector3.new(targetHrp.Position.X - backOffset.X, targetHrp.Position.Y, targetHrp.Position.Z - backOffset.Z)
+                    myChar:PivotTo(CFrame.new(targetPos, targetHrp.Position))
+                end
+            end
+            task.wait(SPEED_TUNER)
+        end
+        loopKillAllActive = false
+    end)
+end
+
+local function ToggleKillAll()
+    local targetState = not toggledKillAll ResetAllStates() toggledKillAll = targetState UpdateVisuals()
+    if toggledKillAll then RunKillAllLoop() end
+end
+
+local function StartFly()
+    local char = lp.Character local hrp = char and char:FindFirstChild("HumanoidRootPart") if not hrp then return end
+    bV = Instance.new("BodyVelocity", hrp) bV.MaxForce = Vector3.new(1e5, 1e5, 1e5) bV.Velocity = Vector3.new(0, 0, 0)
+    bG = Instance.new("BodyGyro", hrp) bG.MaxTorque = Vector3.new(1e5, 1e5, 1e5) bG.CFrame = hrp.CFrame
+    flyConnection = RunService.RenderStepped:Connect(function()
+        if not isFlying or not hrp or not bV or not bG then return end
+        local camCFrame = workspace.CurrentCamera.CFrame local moveVector = Vector3.new(0, 0, 0)
+        if UIS:IsKeyDown(Enum.KeyCode.W) then moveVector = moveVector + camCFrame.LookVector end
+        if UIS:IsKeyDown(Enum.KeyCode.S) then moveVector = moveVector - camCFrame.LookVector end
+        if UIS:IsKeyDown(Enum.KeyCode.A) then moveVector = moveVector - camCFrame.RightVector end
+        if UIS:IsKeyDown(Enum.KeyCode.D) then moveVector = moveVector + camCFrame.RightVector end 
+        if UIS:IsKeyDown(Enum.KeyCode.Space) then moveVector = moveVector + Vector3.new(0, 1, 0) end
+        if UIS:IsKeyDown(Enum.KeyCode.LeftShift) then moveVector = moveVector - Vector3.new(0, 1, 0) end
+        bV.Velocity = (moveVector.Magnitude > 0) and (moveVector.Unit * flySpeed) or Vector3.new(0, 0, 0)
+        bG.CFrame = camCFrame
+    end)
+end
+
+local function ToggleFly()
+    local targetState = not isFlying ResetAllStates() isFlying = targetState UpdateVisuals()
+    if isFlying then StartFly() end
+end
+
+local function StartOrbit()
+    orbitConnection = RunService.Heartbeat:Connect(function()
+        if not isOrbiting or not SelectedPlayer or not SelectedPlayer.Character then return end
+        local targetHrp = SelectedPlayer.Character:FindFirstChild("HumanoidRootPart")
+        local myHrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+        if targetHrp and myHrp then
+            angle = angle + (orbitSpeed / 100)
+            local offset = Vector3.new(math.cos(angle) * orbitDistance, 0, math.sin(angle) * orbitDistance)
+            myHrp.CFrame = CFrame.new(targetHrp.Position + offset, targetHrp.Position)
+            myHrp.Velocity = Vector3.new(0, 0, 0)
+        end
+    end)
+end
+
+local function StartUnderground()
+    underConnection = RunService.Heartbeat:Connect(function()
+        if not isUnderground or not SelectedPlayer or not SelectedPlayer.Character then return end
+        local targetHrp = SelectedPlayer.Character:FindFirstChild("HumanoidRootPart")
+        local myHrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+        if targetHrp and myHrp then
+            myHrp.CFrame = CFrame.new(targetHrp.Position + Vector3.new(0, -6, 0), targetHrp.Position + Vector3.new(0, 5, 0))
+            myHrp.Velocity = Vector3.new(0, 0, 0)
+        end
+    end)
+end
+
+local function TPToSelectedPlayer()
+    if not SelectedPlayer or not SelectedPlayer.Character then return end
+    local targetHrp = SelectedPlayer.Character:FindFirstChild("HumanoidRootPart")
+    local myChar = lp.Character
+    if targetHrp and myChar then
+        myChar:PivotTo(targetHrp.CFrame * CFrame.new(0, 3, 0))
+    end
+end
+
+local function ApplyCameraSettings()
+    if infZoomActive then lp.CameraMaxZoomDistance = 999999 else lp.CameraMaxZoomDistance = 400 end
+    local cam = Workspace.CurrentCamera
+    if cam then cam.FieldOfView = currentFOV end
+end
+
+-- Sự kiện nhấn nút tăng giảm Tốc độ & Sức nhảy
+SpeedMinus.MouseButton1Click:Connect(function()
+    if walkSpeedValue > 16 then
+        walkSpeedValue = walkSpeedValue - 5
+        if walkSpeedValue < 16 then walkSpeedValue = 16 end
+        SpeedLabel.Text = "WalkSpeed: " .. walkSpeedValue
+    end
+end)
+SpeedPlus.MouseButton1Click:Connect(function()
+    if walkSpeedValue < 400 then
+        walkSpeedValue = walkSpeedValue + 5
+        SpeedLabel.Text = "WalkSpeed: " .. walkSpeedValue
+    end
+end)
+
+JumpMinus.MouseButton1Click:Connect(function()
+    if jumpPowerValue > 50 then
+        jumpPowerValue = jumpPowerValue - 10
+        if jumpPowerValue < 50 then jumpPowerValue = 50 end
+        JumpLabel.Text = "JumpPower: " .. jumpPowerValue
+    end
+end)
+JumpPlus.MouseButton1Click:Connect(function()
+    if jumpPowerValue < 500 then
+        jumpPowerValue = jumpPowerValue + 10
+        JumpLabel.Text = "JumpPower: " .. jumpPowerValue
+    end
+end)
+
+-- VÒNG LẶP ĐỒNG BỘ: CHỐNG FLING + KHÓA CHỈ SỐ STATS TỐC ĐỘ VÀ NHẢY CHỐNG GAME RESET
+RunService.Stepped:Connect(function()
+    if antiFlingMode == "Bật" or antiFlingMode == "Khóa" then
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= lp and p.Character then
+                for _, v in pairs(p.Character:GetChildren()) do
+                    if v:IsA("BasePart") then
+                        v.CanCollide = false
+                        v.Velocity = Vector3.new(0, 0, 0)
+                        v.RotVelocity = Vector3.new(0, 0, 0)
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Khóa chỉ số WalkSpeed và JumpPower liên tục
+    local char = lp.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        if walkSpeedValue ~= 16 then
+            hum.WalkSpeed = walkSpeedValue
+        end
+        if jumpPowerValue ~= 50 then
+            hum.UseJumpPower = true 
+            hum.JumpPower = jumpPowerValue
+        end
+    end
+end)
+
+AntiFlingToggle.MouseButton1Click:Connect(function()
+    if antiFlingMode == "Tắt" then antiFlingMode = "Bật" elseif antiFlingMode == "Bật" then antiFlingMode = "Khóa" else antiFlingMode = "Tắt" end UpdateVisuals()
+end)
+
+KillAllBtn.MouseButton1Click:Connect(ToggleKillAll) FlyBtn.MouseButton1Click:Connect(ToggleFly)
+FlyDec.MouseButton1Click:Connect(function() if flySpeed > 10 then flySpeed = flySpeed - 10 FlySpeedLabel.Text = "Fly Speed: " .. flySpeed end end)
+FlyInc.MouseButton1Click:Connect(function() if flySpeed < 300 then flySpeed = flySpeed + 10 FlySpeedLabel.Text = "Fly Speed: " .. flySpeed end end)
+
+UIS.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.E then ToggleKillAll() end
+    if input.KeyCode == Enum.KeyCode.X then ToggleFly() end
+    if input.KeyCode == Enum.KeyCode.T then TPToSelectedPlayer() end 
+end)
+
+-- =========================================================
+-- [PART 4: KHU VỰC 2 - TÍNH NĂNG "TP Pos"]
+-- =========================================================
+local Khu2 = TabFrames[2]
+
+local savedPositions = {} 
+local tpMode = "Instant"  
+local currentTweenSpeed = 200 
+
+local ModeBtn = Instance.new("TextButton", Khu2)
+ModeBtn.Size = UDim2.new(1, -6, 0, 24)
+ModeBtn.Position = UDim2.new(0, 0, 0, 0)
+ModeBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+ModeBtn.Text = "Mode: Instant TP"
+ModeBtn.Font = Enum.Font.GothamBold
+ModeBtn.TextSize = 11
+ModeBtn.TextColor3 = Color3.fromRGB(255, 165, 0)
+Instance.new("UICorner", ModeBtn).CornerRadius = UDim.new(0, 5)
+
+ModeBtn.MouseButton1Click:Connect(function()
+    tpMode = (tpMode == "Instant") and "Tween" or "Instant"
+    ModeBtn.Text = (tpMode == "Instant") and "Mode: Instant TP" or "Mode: Tween Smooth"
+    ModeBtn.TextColor3 = (tpMode == "Instant") and Color3.fromRGB(255, 165, 0) or Color3.fromRGB(30, 160, 30)
+end)
+
+local function TeleportToPosition(targetCFrame)
+    local char = lp.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    
+    if tpMode == "Instant" then
+        char:PivotTo(targetCFrame)
+    else
+        local distance = (hrp.Position - targetCFrame.Position).Magnitude
+        local duration = math.clamp(distance / currentTweenSpeed, 0.2, 6)
+        
+        local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        local tween = TweenService:Create(hrp, tweenInfo, {CFrame = targetCFrame})
+        
+        local bV_anti = Instance.new("BodyVelocity", hrp)
+        bV_anti.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+        bV_anti.Velocity = Vector3.new(0,0,0)
+        
+        tween:Play()
+        tween.Completed:Connect(function() bV_anti:Destroy() end)
+    end
+end
+
+for slot = 1, 5 do
+    local yOffset = 32 + (slot - 1) * 56
+    
+    local SlotFrame = Instance.new("Frame", Khu2)
+    SlotFrame.Size = UDim2.new(1, -6, 0, 50)
+    SlotFrame.Position = UDim2.new(0, 0, 0, yOffset)
+    SlotFrame.BackgroundColor3 = Color3.fromRGB(32, 32, 32)
+    SlotFrame.BorderSizePixel = 0
+    Instance.new("UICorner", SlotFrame).CornerRadius = UDim.new(0, 4)
+    
+    local SlotLabel = Instance.new("TextLabel", SlotFrame)
+    SlotLabel.Size = UDim2.new(1, -10, 0, 16)
+    SlotLabel.Position = UDim2.new(0, 5, 0, 4)
+    SlotLabel.BackgroundTransparency = 1
+    SlotLabel.Text = "📍 Slot " .. slot .. ": [Trống]"
+    SlotLabel.Font = Enum.Font.GothamBold
+    SlotLabel.TextSize = 8
+    SlotLabel.TextColor3 = Color3.fromRGB(160, 160, 160)
+    SlotLabel.TextXAlignment = Enum.TextXAlignment.Left
+    
+    local SaveBtn = Instance.new("TextButton", SlotFrame)
+    SaveBtn.Size = UDim2.new(0, 82, 0, 20)
+    SaveBtn.Position = UDim2.new(0, 5, 0, 24)
+    SaveBtn.BackgroundColor3 = Color3.fromRGB(50, 70, 50)
+    SaveBtn.Text = "Save Pos"
+    SaveBtn.Font = Enum.Font.GothamBold
+    SaveBtn.TextSize = 10
+    SaveBtn.TextColor3 = Color3.new(1, 1, 1)
+    Instance.new("UICorner", SaveBtn).CornerRadius = UDim.new(0, 4)
+    
+    local TPBtn = Instance.new("TextButton", SlotFrame)
+    TPBtn.Size = UDim2.new(0, 82, 0, 20)
+    TPBtn.Position = UDim2.new(1, -87, 0, 24)
+    TPBtn.BackgroundColor3 = Color3.fromRGB(70, 50, 50)
+    TPBtn.Text = "Teleport"
+    TPBtn.Font = Enum.Font.GothamBold
+    TPBtn.TextSize = 10
+    TPBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    Instance.new("UICorner", TPBtn).CornerRadius = UDim.new(0, 4)
+    
+    SaveBtn.MouseButton1Click:Connect(function()
+        local char = lp.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            savedPositions[slot] = hrp.CFrame
+            local pos = hrp.Position
+            SlotLabel.Text = string.format("📍 Slot %d: (%d, %d, %d)", slot, math.round(pos.X), math.round(pos.Y), math.round(pos.Z))
+            SlotLabel.TextColor3 = Color3.fromRGB(30, 190, 30)
+            TPBtn.BackgroundColor3 = Color3.fromRGB(30, 130, 30)
+            TPBtn.TextColor3 = Color3.new(1, 1, 1)
+        end
+    end)
+    
+    TPBtn.MouseButton1Click:Connect(function()
+        if savedPositions[slot] then
+            TeleportToPosition(savedPositions[slot])
+        else
+            local oldText = SlotLabel.Text
+            SlotLabel.Text = "❌ Chưa có tọa độ!"
+            SlotLabel.TextColor3 = Color3.fromRGB(220, 50, 50)
+            task.wait(1)
+            SlotLabel.Text = oldText
+            SlotLabel.TextColor3 = savedPositions[slot] and Color3.fromRGB(30, 190, 30) or Color3.fromRGB(160, 160, 160)
+        end
+    end)
+end
+
+local AdjustFrame = Instance.new("Frame", Khu2)
+AdjustFrame.Size = UDim2.new(1, -6, 0, 28)
+AdjustFrame.Position = UDim2.new(0, 0, 0, 316)
+AdjustFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+Instance.new("UICorner", AdjustFrame).CornerRadius = UDim.new(0, 5)
+
+local AdjustLabel = Instance.new("TextLabel", AdjustFrame)
+AdjustLabel.Size = UDim2.new(1, -50, 1, 0)
+AdjustLabel.Position = UDim2.new(0, 25, 0, 0)
+AdjustLabel.BackgroundTransparency = 1
+AdjustLabel.Text = "Adjust Speed: " .. currentTweenSpeed
+AdjustLabel.Font = Enum.Font.GothamBold
+AdjustLabel.TextSize = 10
+AdjustLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
+
+local DecSpeed = Instance.new("TextButton", AdjustFrame)
+DecSpeed.Size = UDim2.new(0, 20, 0, 20)
+DecSpeed.Position = UDim2.new(0, 4, 0, 4)
+DecSpeed.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+DecSpeed.Text = "-"
+DecSpeed.Font = Enum.Font.GothamBold
+DecSpeed.TextColor3 = Color3.new(1, 1, 1)
+Instance.new("UICorner", DecSpeed)
+
+local IncSpeed = Instance.new("TextButton", AdjustFrame)
+IncSpeed.Size = UDim2.new(0, 20, 0, 20)
+IncSpeed.Position = UDim2.new(1, -24, 0, 4)
+IncSpeed.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+IncSpeed.Text = "+"
+IncSpeed.Font = Enum.Font.GothamBold
+IncSpeed.TextColor3 = Color3.new(1, 1, 1)
+Instance.new("UICorner", IncSpeed)
+
+DecSpeed.MouseButton1Click:Connect(function() if currentTweenSpeed > 100 then currentTweenSpeed = currentTweenSpeed - 50 AdjustLabel.Text = "Adjust Speed: " .. currentTweenSpeed end end)
+IncSpeed.MouseButton1Click:Connect(function() if currentTweenSpeed < 400 then currentTweenSpeed = currentTweenSpeed + 50 AdjustLabel.Text = "Adjust Speed: " .. currentTweenSpeed end end)
+
+-- =========================================================
+-- [PART 5: KHU VỰC 3 - TAB "Player" (CLICK TARGET)]
+-- =========================================================
+local Khu3 = TabFrames[3]
+
+local refreshInterval = 15
+local refreshTimer = refreshInterval
+
+local RefreshBtn = Instance.new("TextButton", Khu3)
+RefreshBtn.Size = UDim2.new(0.72, -4, 0, 22)
+RefreshBtn.Position = UDim2.new(0, 0, 0, 0)
+RefreshBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+RefreshBtn.Text = "🔄 Refresh (15s)"
+RefreshBtn.Font = Enum.Font.GothamBold
+RefreshBtn.TextSize = 10
+RefreshBtn.TextColor3 = Color3.new(1, 1, 1)
+Instance.new("UICorner", RefreshBtn).CornerRadius = UDim.new(0, 4)
+
+local CdBtn = Instance.new("TextButton", Khu3)
+CdBtn.Size = UDim2.new(0.28, -2, 0, 22)
+CdBtn.Position = UDim2.new(0.72, 2, 0, 0)
+CdBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+CdBtn.Text = "15s"
+CdBtn.Font = Enum.Font.GothamBold
+CdBtn.TextSize = 10
+CdBtn.TextColor3 = Color3.fromRGB(255, 165, 0)
+Instance.new("UICorner", CdBtn).CornerRadius = UDim.new(0, 4)
+
+local ScrollingFrame = Instance.new("ScrollingFrame", Khu3)
+ScrollingFrame.Size = UDim2.new(1, -6, 0, 80)
+ScrollingFrame.Position = UDim2.new(0, 0, 0, 26)
+ScrollingFrame.BackgroundTransparency = 1
+ScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+ScrollingFrame.ScrollBarThickness = 10 
+ScrollingFrame.ScrollBarImageColor3 = Color3.fromRGB(255, 165, 0)
+ScrollingFrame.Active = true
+
+local UIListLayout = Instance.new("UIListLayout", ScrollingFrame)
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Padding = UDim.new(0, 4)
+
+OrbitTargetLabel.Parent = Khu3
+OrbitTargetLabel.BackgroundTransparency = 1
+OrbitTargetLabel.Size = UDim2.new(1, -6, 0, 16)
+OrbitTargetLabel.Position = UDim2.new(0, 4, 0, 110)
+OrbitTargetLabel.Text = "Target: None"
+OrbitTargetLabel.Font = Enum.Font.GothamBold
+OrbitTargetLabel.TextSize = 11
+OrbitTargetLabel.TextColor3 = Color3.fromRGB(255, 165, 0)
+OrbitTargetLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+StartOrbitBtn.Parent = Khu3
+StartOrbitBtn.Size = UDim2.new(0.73, -4, 0, 26)
+StartOrbitBtn.Position = UDim2.new(0, 0, 0, 128)
+StartOrbitBtn.Font = Enum.Font.GothamBold
+StartOrbitBtn.TextSize = 11
+StartOrbitBtn.TextColor3 = Color3.new(1, 1, 1)
+Instance.new("UICorner", StartOrbitBtn).CornerRadius = UDim.new(0, 5)
+
+local GiveToolBtn = Instance.new("TextButton", Khu3)
+GiveToolBtn.Size = UDim2.new(0, 48, 0, 26)
+GiveToolBtn.Position = UDim2.new(1, -54, 0, 128)
+GiveToolBtn.BackgroundColor3 = Color3.fromRGB(240, 140, 20)
+GiveToolBtn.Text = "👉 Tool"
+GiveToolBtn.Font = Enum.Font.GothamBold
+GiveToolBtn.TextSize = 10
+GiveToolBtn.TextColor3 = Color3.new(1, 1, 1)
+Instance.new("UICorner", GiveToolBtn).CornerRadius = UDim.new(0, 5)
+
+local function CreateTargetClickTool()
+    local existingTool = lp.Backpack:FindFirstChild("Target Tool") or (lp.Character and lp.Character:FindFirstChild("Target Tool"))
+    if existingTool then existingTool:Destroy() end
+    local targetTool = Instance.new("Tool") targetTool.Name = "Target Tool" targetTool.RequiresHandle = false
+    targetTool.Activated:Connect(function()
+        local mouse = lp:GetMouse() local targetPart = mouse.Target
+        if targetPart then
+            local model = targetPart:FindFirstChildOfClass("Humanoid") and targetPart or targetPart.Parent
+            local targetPlayer = Players:GetPlayerFromCharacter(model) or Players:GetPlayerFromCharacter(model.Parent)
+            if targetPlayer and targetPlayer ~= lp then
+                SelectedPlayer = targetPlayer PlayerLabel.Text = "Target: " .. targetPlayer.Name OrbitTargetLabel.Text = "Target: " .. targetPlayer.Name
+            end
+        end
+    end)
+    targetTool.Equipped:Connect(function() lp:GetMouse().Icon = "rbxassetid://5655383515" end)
+    targetTool.Unequipped:Connect(function() lp:GetMouse().Icon = "" end)
+    targetTool.Parent = lp.Backpack
+end
+GiveToolBtn.MouseButton1Click:Connect(CreateTargetClickTool)
+
+local OrbitDistFrame = Instance.new("Frame", Khu3)
+OrbitDistFrame.Size = UDim2.new(1, -6, 0, 28)
+OrbitDistFrame.Position = UDim2.new(0, 0, 0, 158)
+OrbitDistFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+Instance.new("UICorner", OrbitDistFrame).CornerRadius = UDim.new(0, 5)
+
+local DistLabel = Instance.new("TextLabel", OrbitDistFrame)
+DistLabel.Size = UDim2.new(1, -50, 1, 0)
+DistLabel.Position = UDim2.new(0, 25, 0, 0)
+DistLabel.BackgroundTransparency = 1
+DistLabel.Text = "Orbit Distance: " .. orbitDistance
+DistLabel.Font = Enum.Font.GothamBold
+DistLabel.TextSize = 10
+DistLabel.TextColor3 = Color3.new(1, 1, 1)
+
+local DistMinus = Instance.new("TextButton", OrbitDistFrame)
+DistMinus.Size = UDim2.new(0, 20, 0, 20)
+DistMinus.Position = UDim2.new(0, 4, 0, 4)
+DistMinus.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+DistMinus.Text = "-"
+DistMinus.Font = Enum.Font.GothamBold
+DistMinus.TextColor3 = Color3.new(1, 1, 1)
+Instance.new("UICorner", DistMinus)
+
+local DistPlus = Instance.new("TextButton", OrbitDistFrame)
+DistPlus.Size = UDim2.new(0, 20, 0, 20)
+DistPlus.Position = UDim2.new(1, -24, 0, 4)
+DistPlus.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+DistPlus.Text = "+"
+DistPlus.Font = Enum.Font.GothamBold
+DistPlus.TextColor3 = Color3.new(1, 1, 1)
+Instance.new("UICorner", DistPlus)
+
+local OrbitSpdFrame = Instance.new("Frame", Khu3)
+OrbitSpdFrame.Size = UDim2.new(1, -6, 0, 28)
+OrbitSpdFrame.Position = UDim2.new(0, 0, 0, 190)
+OrbitSpdFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+Instance.new("UICorner", OrbitSpdFrame).CornerRadius = UDim.new(0, 5)
+
+local SpdLabel = Instance.new("TextLabel", OrbitSpdFrame)
+SpdLabel.Size = UDim2.new(1, -50, 1, 0)
+SpdLabel.Position = UDim2.new(0, 25, 0, 0)
+SpdLabel.BackgroundTransparency = 1
+SpdLabel.Text = "Orbit Speed: " .. orbitSpeed
+SpdLabel.Font = Enum.Font.GothamBold
+SpdLabel.TextSize = 10
+SpdLabel.TextColor3 = Color3.new(1, 1, 1)
+
+local SpdMinus = Instance.new("TextButton", OrbitSpdFrame)
+SpdMinus.Size = UDim2.new(0, 20, 0, 20)
+SpdMinus.Position = UDim2.new(0, 4, 0, 4)
+SpdMinus.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+SpdMinus.Text = "-"
+SpdMinus.Font = Enum.Font.GothamBold
+SpdMinus.TextColor3 = Color3.new(1, 1, 1)
+Instance.new("UICorner", SpdMinus)
+
+local SpdPlus = Instance.new("TextButton", OrbitSpdFrame)
+SpdPlus.Size = UDim2.new(0, 20, 0, 20)
+SpdPlus.Position = UDim2.new(1, -24, 0, 4)
+SpdPlus.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+SpdPlus.Text = "+"
+SpdPlus.Font = Enum.Font.GothamBold
+SpdPlus.TextColor3 = Color3.new(1, 1, 1)
+Instance.new("UICorner", SpdPlus)
+
+UnderBtn.Parent = Khu3
+UnderBtn.Size = UDim2.new(1, -6, 0, 26)
+UnderBtn.Position = UDim2.new(0, 0, 0, 222)
+UnderBtn.Font = Enum.Font.GothamBold
+UnderBtn.TextSize = 11
+UnderBtn.TextColor3 = Color3.new(1, 1, 1)
+Instance.new("UICorner", UnderBtn).CornerRadius = UDim.new(0, 5)
+
+local TPTargetBtn = Instance.new("TextButton", Khu3)
+TPTargetBtn.Size = UDim2.new(1, -6, 0, 26)
+TPTargetBtn.Position = UDim2.new(0, 0, 0, 252)
+TPTargetBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 200)
+TPTargetBtn.Text = "TP To Target (T)"
+TPTargetBtn.Font = Enum.Font.GothamBold
+TPTargetBtn.TextSize = 11
+TPTargetBtn.TextColor3 = Color3.new(1, 1, 1)
+Instance.new("UICorner", TPTargetBtn).CornerRadius = UDim.new(0, 5)
+
+local Divider = Instance.new("TextLabel", Khu3)
+Divider.Size = UDim2.new(1, -6, 0, 14)
+Divider.Position = UDim2.new(0, 0, 0, 282)
+Divider.BackgroundTransparency = 1
+Divider.Text = "------------------------------------------"
+Divider.Font = Enum.Font.GothamBold
+Divider.TextSize = 10
+Divider.TextColor3 = Color3.fromRGB(100, 100, 100)
+
+InfZoomBtn.Parent = Khu3
+InfZoomBtn.Size = UDim2.new(1, -6, 0, 28)
+InfZoomBtn.Position = UDim2.new(0, 0, 0, 300)
+InfZoomBtn.Font = Enum.Font.GothamBold
+InfZoomBtn.TextSize = 11
+InfZoomBtn.TextColor3 = Color3.new(1, 1, 1)
+Instance.new("UICorner", InfZoomBtn).CornerRadius = UDim.new(0, 5)
+
+local FovFrame = Instance.new("Frame", Khu3)
+FovFrame.Size = UDim2.new(1, -6, 0, 28)
+FovFrame.Position = UDim2.new(0, 0, 0, 332)
+FovFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+Instance.new("UICorner", FovFrame).CornerRadius = UDim.new(0, 5)
+
+local FovLabel = Instance.new("TextLabel", FovFrame)
+FovLabel.Size = UDim2.new(1, -50, 1, 0)
+FovLabel.Position = UDim2.new(0, 25, 0, 0)
+FovLabel.BackgroundTransparency = 1
+FovLabel.Text = "Adjust FOV: " .. currentFOV
+FovLabel.Font = Enum.Font.GothamBold
+FovLabel.TextSize = 10
+FovLabel.TextColor3 = Color3.fromRGB(0, 220, 255)
+
+local DecFov = Instance.new("TextButton", FovFrame)
+DecFov.Size = UDim2.new(0, 20, 0, 20)
+DecFov.Position = UDim2.new(0, 4, 0, 4)
+DecFov.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+DecFov.Text = "-"
+DecFov.Font = Enum.Font.GothamBold
+DecFov.TextColor3 = Color3.new(1, 1, 1)
+Instance.new("UICorner", DecFov)
+
+local IncFov = Instance.new("TextButton", FovFrame)
+IncFov.Size = UDim2.new(0, 20, 0, 20)
+IncFov.Position = UDim2.new(1, -24, 0, 4)
+IncFov.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+IncFov.Text = "+"
+IncFov.Font = Enum.Font.GothamBold
+IncFov.TextColor3 = Color3.new(1, 1, 1)
+Instance.new("UICorner", IncFov)
+
+DecFov.MouseButton1Click:Connect(function() if currentFOV > 30 then currentFOV = currentFOV - 5 FovLabel.Text = "Adjust FOV: " .. currentFOV ApplyCameraSettings() end end)
+IncFov.MouseButton1Click:Connect(function() if currentFOV < 120 then currentFOV = currentFOV + 5 FovLabel.Text = "Adjust FOV: " .. currentFOV ApplyCameraSettings() end end)
+
+function UpdateZoomVisuals()
+    InfZoomBtn.Text = infZoomActive and "Infinite Zoom: ON 👁️" or "Infinite Zoom: OFF"
+    InfZoomBtn.BackgroundColor3 = infZoomActive and Color3.fromRGB(30, 160, 30) or Color3.fromRGB(200, 30, 30)
+end
+
+RunService.RenderStepped:Connect(function() local cam = Workspace.CurrentCamera if cam and cam.FieldOfView ~= currentFOV then cam.FieldOfView = currentFOV end end)
+
+local function UpdatePlayerList()
+    for _, child in pairs(ScrollingFrame:GetChildren()) do if child:IsA("TextButton") then child:Destroy() end end
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= lp then
+            local pBtn = Instance.new("TextButton", ScrollingFrame)
+            pBtn.Size = UDim2.new(1, -6, 0, 18) pBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+            pBtn.Text = p.DisplayName or p.Name pBtn.Font = Enum.Font.Gotham pBtn.TextSize = 10 pBtn.TextColor3 = Color3.new(1, 1, 1)
+            Instance.new("UICorner", pBtn).CornerRadius = UDim.new(0, 4)
+            pBtn.MouseButton1Click:Connect(function() SelectedPlayer = p PlayerLabel.Text = "Target: " .. p.Name OrbitTargetLabel.Text = "Target: " .. p.Name end)
+        end
+    end
+    ScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, UIListLayout.AbsoluteContentSize.Y)
+end
+
+CdBtn.MouseButton1Click:Connect(function() if refreshInterval == 15 then refreshInterval = 10 elseif refreshInterval == 10 then refreshInterval = 5 else refreshInterval = 15 end refreshTimer = refreshInterval CdBtn.Text = refreshInterval .. "s" end)
+RefreshBtn.MouseButton1Click:Connect(function() UpdatePlayerList() refreshTimer = refreshInterval end)
+
+task.spawn(function()
+    while true do
+        task.wait(1) refreshTimer = refreshTimer - 1
+        if refreshTimer <= 0 then UpdatePlayerList() refreshTimer = refreshInterval end
+        RefreshBtn.Text = "🔄 Refresh (" .. refreshTimer .. "s)"
+    end
+end)
+UpdatePlayerList()
+
+StartOrbitBtn.MouseButton1Click:Connect(function() if not SelectedPlayer then return end local ts = not isOrbiting ResetAllStates() isOrbiting = ts UpdateVisuals() if isOrbiting then StartOrbit() end end)
+UnderBtn.MouseButton1Click:Connect(function() if not SelectedPlayer then return end local ts = not isUnderground ResetAllStates() isUnderground = ts UpdateVisuals() if isUnderground then StartUnderground() end end)
+TPTargetBtn.MouseButton1Click:Connect(TPToSelectedPlayer)
+
+DistMinus.MouseButton1Click:Connect(function() if orbitDistance > 2 then orbitDistance = orbitDistance - 1 DistLabel.Text = "Orbit Distance: " .. orbitDistance end end)
+DistPlus.MouseButton1Click:Connect(function() if orbitDistance < 50 then orbitDistance = orbitDistance + 1 DistLabel.Text = "Orbit Distance: " .. orbitDistance end end)
+SpdMinus.MouseButton1Click:Connect(function() if orbitSpeed > 1 then orbitSpeed = orbitSpeed - 1 SpdLabel.Text = "Orbit Speed: " .. orbitSpeed end end)
+SpdPlus.MouseButton1Click:Connect(function() if orbitSpeed < 30 then orbitSpeed = orbitSpeed + 1 SpdLabel.Text = "Orbit Speed: " .. orbitSpeed end end)
+InfZoomBtn.MouseButton1Click:Connect(function() infZoomActive = not infZoomActive UpdateZoomVisuals() ApplyCameraSettings() end)
+
+-- =========================================================
+-- [PART 6: KHU VỰC TRỐNG TAB 4 & 5]
+-- =========================================================
+local placeholder4 = Instance.new("TextLabel", TabFrames[4]) placeholder4.Size = UDim2.new(1, 0, 1, 0) placeholder4.BackgroundTransparency = 1 placeholder4.Text = "[Đang trống]" placeholder4.Font = Enum.Font.GothamBold placeholder4.TextSize = 12 placeholder4.TextColor3 = Color3.fromRGB(100, 100, 100)
+local placeholder5 = Instance.new("TextLabel", TabFrames[5]) placeholder5.Size = UDim2.new(1, 0, 1, 0) placeholder5.BackgroundTransparency = 1 placeholder5.Text = "[Đang trống]" placeholder5.Font = Enum.Font.GothamBold placeholder5.TextSize = 12 placeholder5.TextColor3 = Color3.fromRGB(100, 100, 100)
+
+-- VÒNG LẶP NỀN: ÉP CLICK CHUỘT + TẮT VA CHẠM KHI CHẠY CORE PHÁ
+RunService.Heartbeat:Connect(function()
+    if toggledKillAll or isOrbiting or isUnderground then
+        if lp.Character then for _, part in pairs(lp.Character:GetChildren()) do if part:IsA("BasePart") then part.CanCollide = false end end end
+        VirtualUser:CaptureController() VirtualUser:Button1Down(Vector2.new(0, 0))
+    end
+end)
+
+lp.CharacterAdded:Connect(function()
+    ResetAllStates() UpdateVisuals() task.wait(0.3) ApplyCameraSettings()
+end)
+
+UpdateVisuals() UpdateZoomVisuals()
+print("🔥 [Abzzait Hub V2.6.6] Khởi chạy thành công! Đã tích hợp WalkSpeed & JumpPower.")
