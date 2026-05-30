@@ -1,6 +1,6 @@
 -- =========================================================
--- 🔥 ABZZAIT STANDALONE KILLALL (TP ALL) SYSTEM 🔥
--- Hỗ trợ nút thu gọn [-] / [+] - Phím tắt E - Auto Click & NoCollide
+-- 🔥 ABZZAIT STANDALONE KILLALL (TP ALL) SYSTEM - V2.1 🔥
+-- Hỗ trợ Whitelist (Bạn bè) & Chế độ quét thứ 4 (Gần Nhất + Tuần Tự)
 -- =========================================================
 
 local UIS = game:GetService("UserInputService")
@@ -28,10 +28,11 @@ end)
 local Gui = Instance.new("ScreenGui", lp:WaitForChild("PlayerGui"))
 Gui.Name = "Abzzait_KillAll_System"
 Gui.ResetOnSpawn = false
+Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
--- Khung giao diện chính (260x220)
+-- Khung giao diện chính (260x260)
 local MainFrame = Instance.new("Frame", Gui)
-MainFrame.Size = UDim2.new(0, 260, 0, 220)
+MainFrame.Size = UDim2.new(0, 260, 0, 260)
 MainFrame.Position = UDim2.new(0.5, -130, 0.3, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 MainFrame.BorderSizePixel = 0
@@ -51,6 +52,7 @@ end)
 UIS.InputChanged:Connect(function(i)
     if drag and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
         local delta = i.Position - start
+        -- Giới hạn kéo thả dựa trên điểm mốc cũ của MainFrame
         MainFrame.Position = UDim2.new(pos.X.Scale, pos.X.Offset + delta.X, pos.Y.Scale, pos.Y.Offset + delta.Y)
     end
 end)
@@ -59,18 +61,18 @@ UIS.InputEnded:Connect(function()
     drag = false 
 end)
 
--- Tiêu đề bảng điều khiển (Chừa chỗ cho 2 nút bên phải)
+-- Tiêu đề bảng điều khiển
 local Title = Instance.new("TextLabel", MainFrame)
 Title.BackgroundTransparency = 1
 Title.Size = UDim2.new(1, -60, 0, 30)
 Title.Position = UDim2.new(0, 10, 0, 0)
-Title.Text = "⚔️ Abzzait KillAll (TP All)"
+Title.Text = "⚔️ Abzzait KillAll System V2.1"
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 11
 Title.TextColor3 = Color3.new(1, 1, 1)
 Title.TextXAlignment = Enum.TextXAlignment.Left
 
--- Nút đóng GUI (X)
+-- Nút tắt nhanh bảng (X)
 local CloseBtn = Instance.new("TextButton", MainFrame)
 CloseBtn.Size = UDim2.new(0, 20, 0, 20)
 CloseBtn.Position = UDim2.new(1, -25, 0, 5)
@@ -80,10 +82,11 @@ CloseBtn.Font = Enum.Font.GothamBold
 CloseBtn.TextSize = 12
 CloseBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
 CloseBtn.MouseButton1Click:Connect(function() 
+    toggledKillAll = false
     Gui:Destroy() 
 end)
 
--- 🛠️ BỔ SUNG NÚT THU GỌN [-] / [+]
+-- Nút thu gọn giao diện [-]
 local MinBtn = Instance.new("TextButton", MainFrame)
 MinBtn.Size = UDim2.new(0, 20, 0, 20)
 MinBtn.Position = UDim2.new(1, -50, 0, 5)
@@ -93,7 +96,7 @@ MinBtn.Font = Enum.Font.GothamBold
 MinBtn.TextSize = 14
 MinBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
 
--- Phím tắt bật/tắt hiển thị nhanh bảng điều khiển (RightControl)
+-- Phím tắt hiển thị bảng (RightControl)
 UIS.InputBegan:Connect(function(input, processed)
     if not processed then
         if input.KeyCode == Enum.KeyCode.RightControl then
@@ -118,17 +121,21 @@ local function createButton(parent, text, size, position, callback)
 end
 
 -- =========================================================
--- [CORE LOGIC - HỆ THỐNG KILLALL (TP ALL)]
+-- [CORE LOGIC - HỆ THỐNG KILLALL NÂNG CẤP V2.1]
 -- =========================================================
 local toggledKillAll = false
 local loopKillAllActive = false
-local BACK_OFFSET_DISTANCE = 2.0 -- Khoảng cách đứng sau mục tiêu
-local SPEED_TUNER = 0.02 -- Tốc độ delay giữa mỗi lần dịch chuyển
+local BACK_OFFSET_DISTANCE = 0.5 
+local SPEED_TUNER = 0.02 
+local killAllMode = "Sequential" -- Chế độ mặc định: "Sequential", "Closest", "Random", "Closest + Seq"
+local targetIndex = 1
+local whitelistTable = {} -- Bảng lưu tên những người chơi được Whitelist
 
+-- Lấy danh sách mục tiêu hợp lệ (Tự động bỏ qua người trong Whitelist)
 local function GetTargetsIncludingDummies()
     local targets = {}
     for _, p in pairs(Players:GetPlayers()) do
-        if p ~= lp and p.Character then
+        if p ~= lp and not whitelistTable[p.Name] and p.Character then
             local hum = p.Character:FindFirstChild("Humanoid")
             if hum and hum.Health > 0 then
                 table.insert(targets, p.Character)
@@ -140,6 +147,7 @@ local function GetTargetsIncludingDummies()
             local hum = obj:FindFirstChild("Humanoid")
             local hrp = obj:FindFirstChild("HumanoidRootPart")
             if hum and hrp then
+                -- Nếu là NPC/Dummy (Không thuộc người chơi nào) thì không nằm trong whitelist của Player
                 if not Players:GetPlayerFromCharacter(obj) and obj ~= lp.Character and hum.Health > 0 then
                     table.insert(targets, obj)
                 end
@@ -149,6 +157,29 @@ local function GetTargetsIncludingDummies()
     return targets
 end
 
+-- Hàm tìm mục tiêu gần nhân vật của bạn nhất
+local function GetClosestTarget(targets)
+    local closestTarget = nil
+    local shortestDistance = math.huge
+    local myHrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+    if not myHrp then 
+        return nil 
+    end
+    
+    for _, target in ipairs(targets) do
+        local targetHrp = target:FindFirstChild("HumanoidRootPart")
+        if targetHrp then
+            local distance = (myHrp.Position - targetHrp.Position).Magnitude
+            if distance < shortestDistance then
+                shortestDistance = distance
+                closestTarget = target
+            end
+        end
+    end
+    return closestTarget
+end
+
+-- Vòng lặp quét dịch chuyển chính V2.1
 local function RunKillAllLoop()
     if loopKillAllActive then 
         return 
@@ -158,14 +189,47 @@ local function RunKillAllLoop()
         while toggledKillAll do
             local targets = GetTargetsIncludingDummies()
             if #targets > 0 then
-                local target = targets[math.random(1, #targets)]
-                local myChar = lp.Character
-                local hrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
-                local targetHrp = target:FindFirstChild("HumanoidRootPart")
-                if hrp and targetHrp then
-                    local backOffset = targetHrp.CFrame.LookVector * BACK_OFFSET_DISTANCE
-                    local targetPos = Vector3.new(targetHrp.Position.X - backOffset.X, targetHrp.Position.Y, targetHrp.Position.Z - backOffset.Z)
-                    myChar:PivotTo(CFrame.new(targetPos, targetHrp.Position))
+                local target = nil
+                
+                -- Phân loại 4 chế độ quét mục tiêu
+                if killAllMode == "Random" then
+                    target = targets[math.random(1, #targets)]
+                elseif killAllMode == "Closest" then
+                    target = GetClosestTarget(targets)
+                elseif killAllMode == "Closest + Seq" then
+                    -- Sắp xếp danh sách mục tiêu theo khoảng cách từ gần đến xa
+                    table.sort(targets, function(a, b)
+                        local hrpA = a:FindFirstChild("HumanoidRootPart")
+                        local hrpB = b:FindFirstChild("HumanoidRootPart")
+                        local myHrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+                        if hrpA and hrpB and myHrp then
+                            return (myHrp.Position - hrpA.Position).Magnitude < (myHrp.Position - hrpB.Position).Magnitude
+                        end
+                        return false
+                    end)
+                    -- Đi tuần tự qua danh sách đã sắp xếp gần nhất
+                    if targetIndex > #targets then
+                        targetIndex = 1
+                    end
+                    target = targets[targetIndex]
+                    targetIndex = targetIndex + 1
+                else -- "Sequential" (Vòng lặp tuần tự gốc)
+                    if targetIndex > #targets then
+                        targetIndex = 1
+                    end
+                    target = targets[targetIndex]
+                    targetIndex = targetIndex + 1
+                end
+                
+                if target then
+                    local myChar = lp.Character
+                    local hrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
+                    local targetHrp = target:FindFirstChild("HumanoidRootPart")
+                    if hrp and targetHrp then
+                        local backOffset = targetHrp.CFrame.LookVector * BACK_OFFSET_DISTANCE
+                        local targetPos = Vector3.new(targetHrp.Position.X - backOffset.X, targetHrp.Position.Y, targetHrp.Position.Z - backOffset.Z)
+                        myChar:PivotTo(CFrame.new(targetPos, targetHrp.Position))
+                    end
                 end
             end
             task.wait(SPEED_TUNER)
@@ -174,6 +238,7 @@ local function RunKillAllLoop()
     end)
 end
 
+-- Vòng lặp click chuột tự động và tắt va chạm
 RunService.Heartbeat:Connect(function()
     if toggledKillAll then
         if lp.Character then
@@ -206,7 +271,8 @@ local function ToggleKillAll()
     end
 end
 
-ToggleBtn = createButton(MainFrame, "KillAll: OFF (E)", UDim2.new(1, -20, 0, 32), UDim2.new(0, 10, 0, 35), ToggleKillAll)
+-- 1. Nút Bật / Tắt KillAll chính (Phím tắt E)
+ToggleBtn = createButton(MainFrame, "KillAll: OFF (E)", UDim2.new(1, -20, 0, 30), UDim2.new(0, 10, 0, 35), ToggleKillAll)
 
 UIS.InputBegan:Connect(function(input, processed)
     if not processed then
@@ -216,9 +282,32 @@ UIS.InputBegan:Connect(function(input, processed)
     end
 end)
 
+-- 2. Nút chuyển đổi chế độ quét mục tiêu (Hỗ trợ xoay vòng 4 chế độ)
+local ModeBtn
+ModeBtn = createButton(MainFrame, "Chế Độ Quét: Tuần Tự", UDim2.new(1, -20, 0, 24), UDim2.new(0, 10, 0, 70), function()
+    if killAllMode == "Sequential" then
+        killAllMode = "Closest"
+        ModeBtn.Text = "Chế Độ Quét: Gần Nhất"
+        ModeBtn.TextColor3 = Color3.fromRGB(0, 220, 255)
+    elseif killAllMode == "Closest" then
+        killAllMode = "Random"
+        ModeBtn.Text = "Chế Độ Quét: Ngẫu Nhiên"
+        ModeBtn.TextColor3 = Color3.fromRGB(255, 165, 0)
+    elseif killAllMode == "Random" then
+        killAllMode = "Closest + Seq"
+        ModeBtn.Text = "Quét: Gần Nhất + Tuần Tự"
+        ModeBtn.TextColor3 = Color3.fromRGB(0, 255, 150)
+    else
+        killAllMode = "Sequential"
+        ModeBtn.Text = "Chế Độ Quét: Tuần Tự"
+        ModeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    end
+end)
+
+-- 3. Thanh chỉnh khoảng cách sau lưng (Back Offset)
 local OffsetFrame = Instance.new("Frame", MainFrame)
-OffsetFrame.Size = UDim2.new(1, -20, 0, 26)
-OffsetFrame.Position = UDim2.new(0, 10, 0, 75)
+OffsetFrame.Size = UDim2.new(1, -20, 0, 24)
+OffsetFrame.Position = UDim2.new(0, 10, 0, 99)
 OffsetFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 Instance.new("UICorner", OffsetFrame).CornerRadius = UDim.new(0, 4)
 
@@ -232,23 +321,24 @@ OffsetLabel.TextSize = 9
 OffsetLabel.TextColor3 = Color3.fromRGB(255, 165, 0)
 OffsetLabel.TextXAlignment = Enum.TextXAlignment.Left
 
-createButton(OffsetFrame, "-", UDim2.new(0, 24, 0, 18), UDim2.new(1, -58, 0, 4), function()
+createButton(OffsetFrame, "-", UDim2.new(0, 24, 0, 18), UDim2.new(1, -58, 0, 3), function()
     if BACK_OFFSET_DISTANCE > 0.5 then
         BACK_OFFSET_DISTANCE = BACK_OFFSET_DISTANCE - 0.5
         OffsetLabel.Text = "Back Distance: " .. BACK_OFFSET_DISTANCE .. " studs"
     end
 end)
 
-createButton(OffsetFrame, "+", UDim2.new(0, 24, 0, 18), UDim2.new(1, -28, 0, 4), function()
+createButton(OffsetFrame, "+", UDim2.new(0, 24, 0, 18), UDim2.new(1, -28, 0, 3), function()
     if BACK_OFFSET_DISTANCE < 10 then
         BACK_OFFSET_DISTANCE = BACK_OFFSET_DISTANCE + 0.5
         OffsetLabel.Text = "Back Distance: " .. BACK_OFFSET_DISTANCE .. " studs"
     end
 end)
 
+-- 4. Thanh chỉnh Delay Speed (Tốc độ quét)
 local SpeedFrame = Instance.new("Frame", MainFrame)
-SpeedFrame.Size = UDim2.new(1, -20, 0, 26)
-SpeedFrame.Position = UDim2.new(0, 10, 0, 109)
+SpeedFrame.Size = UDim2.new(1, -20, 0, 24)
+SpeedFrame.Position = UDim2.new(0, 10, 0, 128)
 SpeedFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 Instance.new("UICorner", SpeedFrame).CornerRadius = UDim.new(0, 4)
 
@@ -262,20 +352,111 @@ SpeedLabel.TextSize = 9
 SpeedLabel.TextColor3 = Color3.fromRGB(0, 220, 255)
 SpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
 
-createButton(SpeedFrame, "-", UDim2.new(0, 24, 0, 18), UDim2.new(1, -58, 0, 4), function()
+createButton(SpeedFrame, "-", UDim2.new(0, 24, 0, 18), UDim2.new(1, -58, 0, 3), function()
     if SPEED_TUNER > 0.01 then
         SPEED_TUNER = SPEED_TUNER - 0.01
         SpeedLabel.Text = "Delay: " .. string.format("%.2f", SPEED_TUNER) .. "s"
     end
 end)
 
-createButton(SpeedFrame, "+", UDim2.new(0, 24, 0, 18), UDim2.new(1, -28, 0, 4), function()
+createButton(SpeedFrame, "+", UDim2.new(0, 24, 0, 18), UDim2.new(1, -28, 0, 3), function()
     if SPEED_TUNER < 0.5 then
         SPEED_TUNER = SPEED_TUNER + 0.01
         SpeedLabel.Text = "Delay: " .. string.format("%.2f", SPEED_TUNER) .. "s"
     end
 end)
 
+-- =========================================================
+-- [🛠️ BẢNG ĐIỀU KHIỂN DANH SÁCH TRẮNG (WHITELIST PANEL)]
+-- =========================================================
+local WhitelistPanel = Instance.new("Frame", MainFrame)
+WhitelistPanel.Size = UDim2.new(0, 145, 0, 215)
+WhitelistPanel.Position = UDim2.new(0, 265, 0, 35) -- Đặt lệch bên phải ngoài khung gốc
+WhitelistPanel.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+WhitelistPanel.BorderSizePixel = 0
+Instance.new("UICorner", WhitelistPanel).CornerRadius = UDim.new(0, 4)
+
+local PanelLabel = Instance.new("TextLabel", WhitelistPanel)
+PanelLabel.Size = UDim2.new(1, 0, 0, 18)
+PanelLabel.BackgroundTransparency = 1
+PanelLabel.Text = "👥 WHITELIST"
+PanelLabel.Font = Enum.Font.GothamBold
+PanelLabel.TextSize = 9
+PanelLabel.TextColor3 = Color3.fromRGB(0, 150, 255)
+PanelLabel.TextXAlignment = Enum.TextXAlignment.Center
+
+local WScroll = Instance.new("ScrollingFrame", WhitelistPanel)
+WScroll.Size = UDim2.new(1, 0, 1, -22)
+WScroll.Position = UDim2.new(0, 0, 0, 20)
+WScroll.BackgroundTransparency = 1
+WScroll.ScrollBarThickness = 4
+WScroll.Active = true
+
+local WListLayout = Instance.new("UIListLayout", WScroll)
+WListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+WListLayout.Padding = UDim.new(0, 4)
+
+-- Hàm cập nhật giao diện danh sách người chơi để Whitelist
+local function updateWhitelistUI()
+    for _, child in ipairs(WScroll:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
+        end
+    end
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= lp then
+            local pBtn = Instance.new("TextButton", WScroll)
+            pBtn.Size = UDim2.new(1, -6, 0, 18)
+            pBtn.Font = Enum.Font.GothamBold
+            pBtn.TextSize = 8
+            pBtn.Text = p.DisplayName or p.Name
+            
+            -- Đổi màu biểu thị trạng thái đã Whitelist
+            if whitelistTable[p.Name] then
+                pBtn.BackgroundColor3 = Color3.fromRGB(30, 160, 30) -- Xanh lá (Đã Whitelist)
+                pBtn.TextColor3 = Color3.new(1, 1, 1)
+            else
+                pBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35) -- Xám (Không Whitelist)
+                pBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+            end
+            Instance.new("UICorner", pBtn).CornerRadius = UDim.new(0, 3)
+            
+            pBtn.MouseButton1Click:Connect(function()
+                whitelistTable[p.Name] = not whitelistTable[p.Name]
+                if whitelistTable[p.Name] then
+                    pBtn.BackgroundColor3 = Color3.fromRGB(30, 160, 30)
+                else
+                    pBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+                end
+            end)
+        end
+    end
+    WScroll.CanvasSize = UDim2.new(0, 0, 0, WListLayout.AbsoluteContentSize.Y)
+end
+
+-- Tự động cập nhật danh sách người chơi khi ra/vào server
+Players.PlayerAdded:Connect(updateWhitelistUI)
+Players.PlayerRemoving:Connect(function(player)
+    whitelistTable[player.Name] = nil
+    updateWhitelistUI()
+end)
+updateWhitelistUI()
+
+-- Nút bấm mở rộng thu nhỏ Whitelist Panel ở mặt chính
+local WhitelistToggleBtn
+local isPanelExpanded = false
+WhitelistToggleBtn = createButton(MainFrame, "👥 Whitelist Panel >>>", UDim2.new(1, -20, 0, 24), UDim2.new(0, 10, 0, 157), function()
+    isPanelExpanded = not isPanelExpanded
+    if isPanelExpanded then
+        MainFrame.Size = UDim2.new(0, 420, 0, 260) -- Mở rộng chiều ngang để lộ Panel
+        WhitelistToggleBtn.Text = "👥 Whitelist Panel <<<"
+    else
+        MainFrame.Size = UDim2.new(0, 260, 0, 260) -- Co về kích thước chuẩn
+        WhitelistToggleBtn.Text = "👥 Whitelist Panel >>>"
+    end
+end)
+
+-- Hướng dẫn phím tắt chân trang
 local HelpLabel = Instance.new("TextLabel", MainFrame)
 HelpLabel.Size = UDim2.new(1, -20, 0, 20)
 HelpLabel.Position = UDim2.new(0, 10, 1, -25)
@@ -293,20 +474,26 @@ local isMinimized = false
 MinBtn.MouseButton1Click:Connect(function()
     isMinimized = not isMinimized
     if isMinimized then
-        MainFrame.Size = UDim2.new(0, 260, 0, 30)
+        MainFrame.Size = UDim2.new(0, isPanelExpanded and 420 or 260, 0, 30)
         ToggleBtn.Visible = false
+        ModeBtn.Visible = false
         OffsetFrame.Visible = false
         SpeedFrame.Visible = false
+        WhitelistToggleBtn.Visible = false
+        WhitelistPanel.Visible = false
         HelpLabel.Visible = false
         MinBtn.Text = "+"
     else
-        MainFrame.Size = UDim2.new(0, 260, 0, 220)
+        MainFrame.Size = UDim2.new(0, isPanelExpanded and 420 or 260, 0, 260)
         ToggleBtn.Visible = true
+        ModeBtn.Visible = true
         OffsetFrame.Visible = true
         SpeedFrame.Visible = true
+        WhitelistToggleBtn.Visible = true
+        WhitelistPanel.Visible = true
         HelpLabel.Visible = true
         MinBtn.Text = "-"
     end
 end)
 
-print("⚔️ [Abzzait Standalone KillAll] Đã tích hợp nút thu gọn giao diện thành công!")
+print("⚔️ [Abzzait KillAll V2.1] Đã tải hệ thống Whitelist & Chế độ quét thứ 4!")
