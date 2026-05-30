@@ -1,6 +1,6 @@
 -- =========================================================
 -- 🔥 ABZZAIT STANDALONE KILLALL (TP ALL) SYSTEM - V2.1 🔥
--- Hỗ trợ Whitelist (Bạn bè) & Chế độ quét thứ 4 (Gần Nhất + Tuần Tự)
+-- KHẮC PHỤC TRIỆT ĐỂ LỖI CHẠY NGẦM KHI ĐÃ ĐÓNG BẢNG ĐIỀU KHIỂN
 -- =========================================================
 
 local UIS = game:GetService("UserInputService")
@@ -10,19 +10,25 @@ local Workspace = game:GetService("Workspace")
 local VirtualUser = game:GetService("VirtualUser")
 local lp = Players.LocalPlayer
 
--- Khởi tạo Anti-AFK
-if getconnections then
-    for _, connection in pairs(getconnections(lp.Idled)) do
-        pcall(function() 
-            connection:Disable() 
-        end)
-    end
-end
+-- =========================================================
+-- [HỆ THỐNG QUẢN LÝ KẾT NỐI - NGĂN CHẶN CHẠY NGẦM]
+-- =========================================================
+local connections = {} -- Chứa tất cả các kết nối sự kiện ngầm
 
-lp.Idled:Connect(function()
+local toggledKillAll = false
+local loopKillAllActive = false
+local BACK_OFFSET_DISTANCE = 0.5 
+local SPEED_TUNER = 0.02 
+local killAllMode = "Sequential" -- "Sequential", "Closest", "Random", "Closest + Seq"
+local targetIndex = 1
+local whitelistTable = {} -- Bảng lưu tên người chơi được Whitelist
+
+-- 1. Kết nối Anti-AFK
+local idledConn = lp.Idled:Connect(function()
     VirtualUser:CaptureController()
     VirtualUser:ClickButton2(Vector2.new(0, 0))
 end)
+table.insert(connections, idledConn)
 
 -- Khởi tạo GUI độc lập
 local Gui = Instance.new("ScreenGui", lp:WaitForChild("PlayerGui"))
@@ -49,17 +55,19 @@ MainFrame.InputBegan:Connect(function(i)
     end
 end)
 
-UIS.InputChanged:Connect(function(i)
+-- 2. Kết nối kéo thả ngầm (Cần ngắt khi đóng)
+local dragChangedConn = UIS.InputChanged:Connect(function(i)
     if drag and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
         local delta = i.Position - start
-        -- Giới hạn kéo thả dựa trên điểm mốc cũ của MainFrame
         MainFrame.Position = UDim2.new(pos.X.Scale, pos.X.Offset + delta.X, pos.Y.Scale, pos.Y.Offset + delta.Y)
     end
 end)
+table.insert(connections, dragChangedConn)
 
-UIS.InputEnded:Connect(function() 
+local dragEndedConn = UIS.InputEnded:Connect(function() 
     drag = false 
 end)
+table.insert(connections, dragEndedConn)
 
 -- Tiêu đề bảng điều khiển
 local Title = Instance.new("TextLabel", MainFrame)
@@ -72,7 +80,7 @@ Title.TextSize = 11
 Title.TextColor3 = Color3.new(1, 1, 1)
 Title.TextXAlignment = Enum.TextXAlignment.Left
 
--- Nút tắt nhanh bảng (X)
+-- NÚT ĐÓNG (X) - Giải phóng toàn bộ bộ nhớ và ngắt tất cả kết nối phím tắt
 local CloseBtn = Instance.new("TextButton", MainFrame)
 CloseBtn.Size = UDim2.new(0, 20, 0, 20)
 CloseBtn.Position = UDim2.new(1, -25, 0, 5)
@@ -82,8 +90,29 @@ CloseBtn.Font = Enum.Font.GothamBold
 CloseBtn.TextSize = 12
 CloseBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
 CloseBtn.MouseButton1Click:Connect(function() 
-    toggledKillAll = false
-    Gui:Destroy() 
+    toggledKillAll = false -- Dừng vòng lặp dịch chuyển
+    
+    -- Giải phóng toàn bộ kết nối sự kiện ngầm
+    for _, conn in ipairs(connections) do
+        if conn then
+            pcall(function() 
+                conn:Disconnect() 
+            end)
+        end
+    end
+    
+    -- Trả va chạm của nhân vật về bình thường
+    pcall(function()
+        if lp.Character then
+            for _, part in pairs(lp.Character:GetChildren()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = true
+                end
+            end
+        end
+    end)
+    
+    Gui:Destroy() -- Xóa giao diện
 end)
 
 -- Nút thu gọn giao diện [-]
@@ -96,14 +125,15 @@ MinBtn.Font = Enum.Font.GothamBold
 MinBtn.TextSize = 14
 MinBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
 
--- Phím tắt hiển thị bảng (RightControl)
-UIS.InputBegan:Connect(function(input, processed)
+-- 3. Kết nối phím tắt (RightControl & phím E)
+local inputBeganConn = UIS.InputBegan:Connect(function(input, processed)
     if not processed then
         if input.KeyCode == Enum.KeyCode.RightControl then
             MainFrame.Visible = not MainFrame.Visible
         end
     end
 end)
+table.insert(connections, inputBeganConn)
 
 -- Hàm tạo nút bấm nhanh
 local function createButton(parent, text, size, position, callback)
@@ -123,13 +153,6 @@ end
 -- =========================================================
 -- [CORE LOGIC - HỆ THỐNG KILLALL NÂNG CẤP V2.1]
 -- =========================================================
-local toggledKillAll = false
-local loopKillAllActive = false
-local BACK_OFFSET_DISTANCE = 0.5 
-local SPEED_TUNER = 0.02 
-local killAllMode = "Sequential" -- Chế độ mặc định: "Sequential", "Closest", "Random", "Closest + Seq"
-local targetIndex = 1
-local whitelistTable = {} -- Bảng lưu tên những người chơi được Whitelist
 
 -- Lấy danh sách mục tiêu hợp lệ (Tự động bỏ qua người trong Whitelist)
 local function GetTargetsIncludingDummies()
@@ -147,7 +170,6 @@ local function GetTargetsIncludingDummies()
             local hum = obj:FindFirstChild("Humanoid")
             local hrp = obj:FindFirstChild("HumanoidRootPart")
             if hum and hrp then
-                -- Nếu là NPC/Dummy (Không thuộc người chơi nào) thì không nằm trong whitelist của Player
                 if not Players:GetPlayerFromCharacter(obj) and obj ~= lp.Character and hum.Health > 0 then
                     table.insert(targets, obj)
                 end
@@ -197,7 +219,6 @@ local function RunKillAllLoop()
                 elseif killAllMode == "Closest" then
                     target = GetClosestTarget(targets)
                 elseif killAllMode == "Closest + Seq" then
-                    -- Sắp xếp danh sách mục tiêu theo khoảng cách từ gần đến xa
                     table.sort(targets, function(a, b)
                         local hrpA = a:FindFirstChild("HumanoidRootPart")
                         local hrpB = b:FindFirstChild("HumanoidRootPart")
@@ -207,13 +228,12 @@ local function RunKillAllLoop()
                         end
                         return false
                     end)
-                    -- Đi tuần tự qua danh sách đã sắp xếp gần nhất
                     if targetIndex > #targets then
                         targetIndex = 1
                     end
                     target = targets[targetIndex]
                     targetIndex = targetIndex + 1
-                else -- "Sequential" (Vòng lặp tuần tự gốc)
+                else -- "Sequential" (Vòng lặp tuần tự)
                     if targetIndex > #targets then
                         targetIndex = 1
                     end
@@ -238,8 +258,8 @@ local function RunKillAllLoop()
     end)
 end
 
--- Vòng lặp click chuột tự động và tắt va chạm
-RunService.Heartbeat:Connect(function()
+-- 4. Kết nối click chuột tự động và tắt va chạm ngầm (Cần ngắt khi đóng)
+local clickHeartbeatConn = RunService.Heartbeat:Connect(function()
     if toggledKillAll then
         if lp.Character then
             for _, part in pairs(lp.Character:GetChildren()) do
@@ -252,6 +272,7 @@ RunService.Heartbeat:Connect(function()
         VirtualUser:Button1Down(Vector2.new(0, 0))
     end
 end)
+table.insert(connections, clickHeartbeatConn)
 
 -- =========================================================
 -- [GIAO DIỆN ĐIỀU KHIỂN CHI TIẾT]
@@ -274,13 +295,15 @@ end
 -- 1. Nút Bật / Tắt KillAll chính (Phím tắt E)
 ToggleBtn = createButton(MainFrame, "KillAll: OFF (E)", UDim2.new(1, -20, 0, 30), UDim2.new(0, 10, 0, 35), ToggleKillAll)
 
-UIS.InputBegan:Connect(function(input, processed)
+-- 5. Kết kết nút E riêng biệt để tránh lỗi trùng lặp khi chạy ngầm
+local keyEConn = UIS.InputBegan:Connect(function(input, processed)
     if not processed then
         if input.KeyCode == Enum.KeyCode.E then
             ToggleKillAll()
         end
     end
 end)
+table.insert(connections, keyEConn)
 
 -- 2. Nút chuyển đổi chế độ quét mục tiêu (Hỗ trợ xoay vòng 4 chế độ)
 local ModeBtn
@@ -371,7 +394,7 @@ end)
 -- =========================================================
 local WhitelistPanel = Instance.new("Frame", MainFrame)
 WhitelistPanel.Size = UDim2.new(0, 145, 0, 215)
-WhitelistPanel.Position = UDim2.new(0, 265, 0, 35) -- Đặt lệch bên phải ngoài khung gốc
+WhitelistPanel.Position = UDim2.new(0, 265, 0, 35)
 WhitelistPanel.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 WhitelistPanel.BorderSizePixel = 0
 Instance.new("UICorner", WhitelistPanel).CornerRadius = UDim.new(0, 4)
@@ -396,7 +419,6 @@ local WListLayout = Instance.new("UIListLayout", WScroll)
 WListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 WListLayout.Padding = UDim.new(0, 4)
 
--- Hàm cập nhật giao diện danh sách người chơi để Whitelist
 local function updateWhitelistUI()
     for _, child in ipairs(WScroll:GetChildren()) do
         if child:IsA("TextButton") then
@@ -411,12 +433,11 @@ local function updateWhitelistUI()
             pBtn.TextSize = 8
             pBtn.Text = p.DisplayName or p.Name
             
-            -- Đổi màu biểu thị trạng thái đã Whitelist
             if whitelistTable[p.Name] then
-                pBtn.BackgroundColor3 = Color3.fromRGB(30, 160, 30) -- Xanh lá (Đã Whitelist)
+                pBtn.BackgroundColor3 = Color3.fromRGB(30, 160, 30)
                 pBtn.TextColor3 = Color3.new(1, 1, 1)
             else
-                pBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35) -- Xám (Không Whitelist)
+                pBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
                 pBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
             end
             Instance.new("UICorner", pBtn).CornerRadius = UDim.new(0, 3)
@@ -434,24 +455,27 @@ local function updateWhitelistUI()
     WScroll.CanvasSize = UDim2.new(0, 0, 0, WListLayout.AbsoluteContentSize.Y)
 end
 
--- Tự động cập nhật danh sách người chơi khi ra/vào server
-Players.PlayerAdded:Connect(updateWhitelistUI)
-Players.PlayerRemoving:Connect(function(player)
+-- 6. Kết nối danh sách người chơi mới vào (Cần ngắt khi đóng)
+local pAddedConn = Players.PlayerAdded:Connect(updateWhitelistUI)
+table.insert(connections, pAddedConn)
+
+local pRemovingConn = Players.PlayerRemoving:Connect(function(player)
     whitelistTable[player.Name] = nil
     updateWhitelistUI()
 end)
+table.insert(connections, pRemovingConn)
+
 updateWhitelistUI()
 
--- Nút bấm mở rộng thu nhỏ Whitelist Panel ở mặt chính
 local WhitelistToggleBtn
 local isPanelExpanded = false
 WhitelistToggleBtn = createButton(MainFrame, "👥 Whitelist Panel >>>", UDim2.new(1, -20, 0, 24), UDim2.new(0, 10, 0, 157), function()
     isPanelExpanded = not isPanelExpanded
     if isPanelExpanded then
-        MainFrame.Size = UDim2.new(0, 420, 0, 260) -- Mở rộng chiều ngang để lộ Panel
+        MainFrame.Size = UDim2.new(0, 420, 0, 260)
         WhitelistToggleBtn.Text = "👥 Whitelist Panel <<<"
     else
-        MainFrame.Size = UDim2.new(0, 260, 0, 260) -- Co về kích thước chuẩn
+        MainFrame.Size = UDim2.new(0, 260, 0, 260)
         WhitelistToggleBtn.Text = "👥 Whitelist Panel >>>"
     end
 end)
@@ -496,4 +520,4 @@ MinBtn.MouseButton1Click:Connect(function()
     end
 end)
 
-print("⚔️ [Abzzait KillAll V2.1] Đã tải hệ thống Whitelist & Chế độ quét thứ 4!")
+print("⚔️ [Abzzait KillAll V2.1] Đã vá lỗi tắt GUI chạy ngầm thành công!")
