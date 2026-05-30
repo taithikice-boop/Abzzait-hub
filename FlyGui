@@ -1,0 +1,288 @@
+-- =========================================================
+-- 🔥 ABZZAIT STANDALONE FLY HACK SYSTEM 🔥
+-- Hỗ trợ phím tắt X để bay - Nút thu gọn [-] / [+] - WASD + Space + LShift
+-- =========================================================
+
+local UIS = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local VirtualUser = game:GetService("VirtualUser")
+local lp = Players.LocalPlayer
+
+-- Khởi tạo Anti-AFK
+if getconnections then
+    for _, connection in pairs(getconnections(lp.Idled)) do
+        pcall(function() 
+            connection:Disable() 
+        end)
+    end
+end
+
+lp.Idled:Connect(function()
+    VirtualUser:CaptureController()
+    VirtualUser:ClickButton2(Vector2.new(0, 0))
+end)
+
+-- Khởi tạo GUI độc lập
+local Gui = Instance.new("ScreenGui", lp:WaitForChild("PlayerGui"))
+Gui.Name = "Abzzait_Fly_System"
+Gui.ResetOnSpawn = false
+
+-- Khung giao diện chính (260x180)
+local MainFrame = Instance.new("Frame", Gui)
+MainFrame.Size = UDim2.new(0, 260, 0, 180)
+MainFrame.Position = UDim2.new(0.5, -130, 0.45, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+MainFrame.BorderSizePixel = 0
+MainFrame.ClipsDescendants = true
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 6)
+
+-- Hệ thống kéo thả GUI
+local drag, start, pos
+MainFrame.InputBegan:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+        drag = true
+        start = i.Position
+        pos = MainFrame.Position
+    end
+end)
+
+UIS.InputChanged:Connect(function(i)
+    if drag and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+        local delta = i.Position - start
+        MainFrame.Position = UDim2.new(pos.X.Scale, pos.X.Offset + delta.X, pos.Y.Scale, pos.Y.Offset + delta.Y)
+    end
+end)
+
+UIS.InputEnded:Connect(function() 
+    drag = false 
+end)
+
+-- Tiêu đề bảng điều khiển (Chừa chỗ cho nút thu gọn và tắt)
+local Title = Instance.new("TextLabel", MainFrame)
+Title.BackgroundTransparency = 1
+Title.Size = UDim2.new(1, -60, 0, 30)
+Title.Position = UDim2.new(0, 10, 0, 0)
+Title.Text = "🚀 Abzzait Fly Hack"
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 11
+Title.TextColor3 = Color3.new(1, 1, 1)
+Title.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Nút tắt hoàn toàn GUI (X)
+local CloseBtn = Instance.new("TextButton", MainFrame)
+CloseBtn.Size = UDim2.new(0, 20, 0, 20)
+CloseBtn.Position = UDim2.new(1, -25, 0, 5)
+CloseBtn.BackgroundTransparency = 1
+CloseBtn.Text = "X"
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.TextSize = 12
+CloseBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
+CloseBtn.MouseButton1Click:Connect(function() 
+    -- Tắt bay an toàn trước khi xóa GUI
+    isFlying = false
+    if flyConnection then flyConnection:Disconnect() end
+    if bV then bV:Destroy() end
+    if bG then bG:Destroy() end
+    Gui:Destroy() 
+end)
+
+-- Nút thu gọn giao diện [-]
+local MinBtn = Instance.new("TextButton", MainFrame)
+MinBtn.Size = UDim2.new(0, 20, 0, 20)
+MinBtn.Position = UDim2.new(1, -50, 0, 5)
+MinBtn.BackgroundTransparency = 1
+MinBtn.Text = "-"
+MinBtn.Font = Enum.Font.GothamBold
+MinBtn.TextSize = 14
+MinBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
+
+-- Phím tắt ẩn/hiện nhanh GUI (RightControl)
+UIS.InputBegan:Connect(function(input, processed)
+    if not processed then
+        if input.KeyCode == Enum.KeyCode.RightControl then
+            MainFrame.Visible = not MainFrame.Visible
+        end
+    end
+end)
+
+-- Hàm tạo nút bấm nhanh
+local function createButton(parent, text, size, position, callback)
+    local btn = Instance.new("TextButton", parent)
+    btn.Size = size
+    btn.Position = position
+    btn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    btn.Text = text
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 10
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
+    btn.MouseButton1Click:Connect(callback)
+    return btn
+end
+
+-- =========================================================
+-- [CORE LOGIC - HỆ THỐNG BAY LƯỢT (FLY HACK)]
+-- =========================================================
+local isFlying = false
+local flySpeed = 50
+local bV, bG, flyConnection
+
+local ToggleBtn
+
+-- Hàm xử lý Bật / Tắt bay
+local function ToggleFly()
+    isFlying = not isFlying
+    local char = lp.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then
+        isFlying = false
+        return
+    end
+    
+    if isFlying then
+        ToggleBtn.Text = "Fly Hack: ACTIVE (X)"
+        ToggleBtn.BackgroundColor3 = Color3.fromRGB(30, 160, 30) -- Màu xanh lá khi bật
+        
+        -- Tạo lực đẩy vận tốc và giữ hướng xoay của nhân vật
+        bV = Instance.new("BodyVelocity", hrp)
+        bV.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+        bV.Velocity = Vector3.new(0, 0, 0)
+        
+        bG = Instance.new("BodyGyro", hrp)
+        bG.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
+        bG.CFrame = hrp.CFrame
+        
+        -- Vòng lặp Render cập nhật hướng chuyển động theo camera
+        flyConnection = RunService.RenderStepped:Connect(function()
+            if not isFlying or not hrp or not bV or not bG then 
+                return 
+            end
+            local camCFrame = Workspace.CurrentCamera.CFrame
+            local moveVector = Vector3.new(0, 0, 0)
+            
+            -- Đọc trạng thái nhấn phím di chuyển
+            if UIS:IsKeyDown(Enum.KeyCode.W) then 
+                moveVector = moveVector + camCFrame.LookVector 
+            end
+            if UIS:IsKeyDown(Enum.KeyCode.S) then 
+                moveVector = moveVector - camCFrame.LookVector 
+            end
+            if UIS:IsKeyDown(Enum.KeyCode.A) then 
+                moveVector = moveVector - camCFrame.RightVector 
+            end
+            if UIS:IsKeyDown(Enum.KeyCode.D) then 
+                moveVector = moveVector + camCFrame.RightVector 
+            end
+            if UIS:IsKeyDown(Enum.KeyCode.Space) then 
+                moveVector = moveVector + Vector3.new(0, 1, 0) 
+            end
+            if UIS:IsKeyDown(Enum.KeyCode.LeftShift) then 
+                moveVector = moveVector - Vector3.new(0, 1, 0) 
+            end
+            
+            -- Áp dụng lực vận tốc lên nhân vật
+            bV.Velocity = (moveVector.Magnitude > 0) and (moveVector.Unit * flySpeed) or Vector3.new(0, 0, 0)
+            bG.CFrame = camCFrame
+        end)
+    else
+        ToggleBtn.Text = "Fly Hack: OFF (X)"
+        ToggleBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+        
+        -- Dọn dẹp các lực khi tắt bay
+        if flyConnection then 
+            flyConnection:Disconnect() 
+            flyConnection = nil 
+        end
+        if bV then 
+            bV:Destroy() 
+            bV = nil 
+        end
+        if bG then 
+            bG:Destroy() 
+            bG = nil 
+        end
+    end
+end
+
+-- =========================================================
+-- [GIAO DIỆN ĐIỀU KHIỂN CHI TIẾT]
+-- =========================================================
+
+-- 1. Nút Bật / Tắt Fly chính
+ToggleBtn = createButton(MainFrame, "Fly Hack: OFF (X)", UDim2.new(1, -20, 0, 32), UDim2.new(0, 10, 0, 35), ToggleFly)
+
+-- Lắng nghe phím tắt X để kích hoạt nhanh
+UIS.InputBegan:Connect(function(input, processed)
+    if not processed then
+        if input.KeyCode == Enum.KeyCode.X then
+            ToggleFly()
+        end
+    end
+end)
+
+-- 2. Thanh điều chỉnh tốc độ bay (Fly Speed)
+local SpeedFrame = Instance.new("Frame", MainFrame)
+SpeedFrame.Size = UDim2.new(1, -20, 0, 26)
+SpeedFrame.Position = UDim2.new(0, 10, 0, 75)
+SpeedFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+Instance.new("UICorner", SpeedFrame).CornerRadius = UDim.new(0, 4)
+
+local SpeedLabel = Instance.new("TextLabel", SpeedFrame)
+SpeedLabel.Size = UDim2.new(1, -80, 1, 0)
+SpeedLabel.Position = UDim2.new(0, 8, 0, 0)
+SpeedLabel.BackgroundTransparency = 1
+SpeedLabel.Text = "Fly Speed: " .. flySpeed
+SpeedLabel.Font = Enum.Font.GothamBold
+SpeedLabel.TextSize = 9
+SpeedLabel.TextColor3 = Color3.fromRGB(0, 220, 255)
+SpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+createButton(SpeedFrame, "-", UDim2.new(0, 24, 0, 18), UDim2.new(1, -58, 0, 4), function()
+    if flySpeed > 10 then
+        flySpeed = flySpeed - 10
+        SpeedLabel.Text = "Fly Speed: " .. flySpeed
+    end
+end)
+
+createButton(SpeedFrame, "+", UDim2.new(0, 24, 0, 18), UDim2.new(1, -28, 0, 4), function()
+    if flySpeed < 300 then
+        flySpeed = flySpeed + 10
+        SpeedLabel.Text = "Fly Speed: " .. flySpeed
+    end
+end)
+
+-- Chân trang hướng dẫn điều khiển
+local HelpLabel = Instance.new("TextLabel", MainFrame)
+HelpLabel.Size = UDim2.new(1, -20, 0, 30)
+HelpLabel.Position = UDim2.new(0, 10, 1, -38)
+HelpLabel.BackgroundTransparency = 1
+HelpLabel.Text = "Cách bay: WASD + Space (Lên) + LShift (Xuống)\nPhím bật/tắt nhanh: X"
+HelpLabel.Font = Enum.Font.GothamBold
+HelpLabel.TextSize = 8
+HelpLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+HelpLabel.TextXAlignment = Enum.TextXAlignment.Center
+
+-- =========================================================
+-- [LẮNG NGHE SỰ KIỆN NÚT THU GỌN]
+-- =========================================================
+local isMinimized = false
+MinBtn.MouseButton1Click:Connect(function()
+    isMinimized = not isMinimized
+    if isMinimized then
+        MainFrame.Size = UDim2.new(0, 260, 0, 30)
+        ToggleBtn.Visible = false
+        SpeedFrame.Visible = false
+        HelpLabel.Visible = false
+        MinBtn.Text = "+"
+    else
+        MainFrame.Size = UDim2.new(0, 260, 0, 180)
+        ToggleBtn.Visible = true
+        SpeedFrame.Visible = true
+        HelpLabel.Visible = true
+        MinBtn.Text = "-"
+    end
+end)
+
+print("🚀 [Abzzait Standalone Fly] Đã kích hoạt hệ thống thành công!")
